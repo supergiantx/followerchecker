@@ -24,11 +24,14 @@
                 $("#past_sub").text("number of followers: " + previous_count);
             };
 
-            function getFollwerCnt(){                
+            function getFollwerCnt(){
                 username = $("#text_username").val();
                 if(username === ""){
                     return;
                 }
+
+                $("#btn_check").css("background-color", "#256873").text("Loading...");
+
                 storage_username = localStorage.getItem("username");
                 if(storage_username !==  username){
                     localStorage.clear();
@@ -93,6 +96,8 @@
 
                     localStorage.setItem("follower_count", result.length);
                     localStorage.setItem("follower_list", JSON.stringify(getArray(result)));
+
+                    $("#btn_check").css("background-color", "#205894").text("Check Now");
                 });
             }
 
@@ -125,7 +130,7 @@
                         </div> 
                         <input type="text" id="text_username" class="form-control" placeholder="Username" aria-label="Username" aria-describedby="basic-addon1">
                         <!--<div id="alert" class="alert alert-danger" role="alert" style="display:none;"></div>-->
-                        <button type="button" id="btn_check" class="btn btn-primary btn-lg btn-block" style="background-color:#205894; margin-top:10px;" onclick="getFollwerCnt();">Check Now</button>
+                        <button type="button" id="btn_check" class="btn btn-primary btn-lg btn-block" style="background-color:#205894; border-color:#205894; margin-top:10px;" onclick="getFollwerCnt();">Check Now</button>
                     </div>
                     <h5 class="card-title">Follower Result</h5>
                     <div id="result" class="alert alert-primary" role="alert">
