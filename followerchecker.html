@@ -30,7 +30,7 @@
                     return;
                 }
 
-                $("#btn_check").css("background-color", "#256873").text("Loading...");
+                $("#btn_check").css("background-color", "#256873").text("Loading...").prop('disabled', true);
 
                 storage_username = localStorage.getItem("username");
                 if(storage_username !==  username){
@@ -38,77 +38,90 @@
                 }
                 localStorage.setItem("username", username);
 
-                var previous_follower_count = localStorage.getItem("follower_count");
-                var current_follwer_count;
                 steem.api.setOptions({url: 'https://api.steemit.com'});
                 steem.api.getFollowCount(username, function(err, result) {
-                    console.log(err, result);                    
+                    console.log(err, result);
                     if(err){
                         throw new Error(err);
-                    }
-                    current_follwer_count = result.follower_count;
-                    
-                    if(previous_follower_count === null){
-                        getFollowers("INIT");
-                        return;
-                    }                   
-                    getFollowers('CHANGE');
+                    } 
+                    allFollower = [];
+                    getAllFollowers('', result.follower_count, 0);
                 });
             }
-
-            function getFollowers(type){
-                var options = {following: username, startFollower: '', followType: 'blog', limit: 1000}
+            
+            var allFollower = [];
+            function getAllFollowers(startFollower, total_count, current_count) {
+                var options = {following: username, startFollower: startFollower, followType: 'blog', limit: 1000}
                 steem.api.getFollowersWith(options, function(err, result) {
-                    console.log(err, result);
-                    if(type === "CHANGE") { 
-                        var previous_follower_array = JSON.parse(localStorage.getItem("follower_list"));
-                        var new_follower_array = [];
-
-                        for(var i = 0; i < result.length; i ++){
-                            var index = previous_follower_array.indexOf(result[i].follower);
-                            if(index === -1){
-                                new_follower_array.push(result[i].follower);
-                            }else{
-                                previous_follower_array.splice(index,1);
-                            }
-                        }
-
-                        var resultHtml = "";
-                        for(var i = 0; i < new_follower_array.length; i++){
-                            var link = '<a class="btn btn-success" style="margin:3px;" href="https://steemit.com/@' + new_follower_array[i] + '" role="button" target="_blank">' + new_follower_array[i] + '</a>';
-                            resultHtml += link;
-                        }
-                        for(var i = 0; i < previous_follower_array.length; i++){
-                            var link = '<a class="btn btn-warning" style="margin:3px;" href="https://steemit.com/@' + previous_follower_array[i] + '" role="button" target="_blank">' + previous_follower_array[i] + '</a>';
-                            resultHtml += link;
-                        }
-
-                        if(new_follower_array.length == 0 && previous_follower_array.length == 0){
-                            $("#result").html(defaultHtml);
-                        }else{
-                            $("#result").html(resultHtml);
-                        }                        
-                        $("#past_sub").text("number of followers: " + result.length + "  (↗" + new_follower_array.length + "  ↘" + previous_follower_array.length + ")");
-                        console.log("Recent followers: " + new_follower_array.length + " Recent unfollowers: "  + previous_follower_array.length);
-                    } else if(type === "INIT"){
-                        $("#past_sub").text("number of followers: " + result.length + " (↗0 ↘0)");
+                    // console.log(err, result);
+                    var followerNum = result.length;
+                    var lastFollwerName = result[followerNum - 1].follower;
+                    
+                    if(followerNum > 999){
+                        result.pop();
+                        followerNum--;
                     }
+                    var array = result.map(function(item, index){
+                        return item.follower;
+                    })
+                    
+                    allFollower = allFollower.length == 0 ? array : allFollower.concat(array);
 
-                    localStorage.setItem("follower_count", result.length);
-                    localStorage.setItem("follower_list", JSON.stringify(getArray(result)));
-
-                    $("#btn_check").css("background-color", "#205894").text("Check Now");
-                });
+                    if(current_count + result.length < total_count){
+                        getAllFollowers(lastFollwerName, total_count, current_count + followerNum );
+                    }else{
+                        console.log("total: " + allFollower.length);
+                        var previous_follower_count = localStorage.getItem("follower_count");
+                        if(previous_follower_count === null){
+                            displayResult("INIT", allFollower);
+                        }else{
+                            displayResult('CHANGE', allFollower);
+                        }
+                    }
+                })
             }
 
-            function getArray(list){
-                var follwerArary = [];
-                for(var i = 0; i < list.length; i ++){
-                    follwerArary.push(list[i].follower);
+            function displayResult(type, result){
+                if(type === "CHANGE") { 
+                    var previous_follower_array = JSON.parse(localStorage.getItem("follower_list"));
+                    var new_follower_array = [];
+
+                    for(var i = 0; i < result.length; i ++){
+                        var index = previous_follower_array.indexOf(result[i]);
+                        if(index === -1){
+                            new_follower_array.push(result[i]);
+                        }else{
+                            previous_follower_array.splice(index,1);
+                        }
+                    }
+
+                    var resultHtml = "";
+                    for(var i = 0; i < new_follower_array.length; i++){
+                        var link = '<a class="btn btn-success" style="margin:3px;" href="https://steemit.com/@' + new_follower_array[i] + '" role="button" target="_blank">' + new_follower_array[i] + '</a>';
+                        resultHtml += link;
+                    }
+                    for(var i = 0; i < previous_follower_array.length; i++){
+                        var link = '<a class="btn btn-warning" style="margin:3px;" href="https://steemit.com/@' + previous_follower_array[i] + '" role="button" target="_blank">' + previous_follower_array[i] + '</a>';
+                        resultHtml += link;
+                    }
+
+                    if(new_follower_array.length == 0 && previous_follower_array.length == 0){
+                        $("#result").html(defaultHtml);
+                    }else{
+                        $("#result").html(resultHtml);
+                    }                        
+                    $("#past_sub").text("number of followers: " + result.length + "  (↗" + new_follower_array.length + "  ↘" + previous_follower_array.length + ")");
+                    console.log("Recent followers: " + new_follower_array.length + " Recent unfollowers: "  + previous_follower_array.length);
+                } else if(type === "INIT"){
+                    $("#past_sub").text("number of followers: " + result.length + " (↗0 ↘0)");
                 }
 
-                return follwerArary;
+                localStorage.setItem("follower_count", result.length);
+                localStorage.setItem("follower_list", JSON.stringify(result));
+
+                $("#btn_check").css("background-color", "#205894").text("Check Now").prop('disabled', false);
             }
+    
         </script>
     </head>
     <body>
