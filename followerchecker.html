@@ -22,41 +22,80 @@
                 previous_count = previous_count === null ? 0 : previous_count;
                 $("#text_username").val(storage_username);
                 $("#past_sub").text("number of followers: " + previous_count);
+                steem.api.setOptions({url: 'https://api.steemit.com'});
             };
-
-            function getFollwerCnt(){
+            
+            async function getSteemData(){
                 username = $("#text_username").val();
                 if(username === ""){
                     return;
                 }
-
                 $("#btn_check").css("background-color", "#256873").text("Loading...").prop('disabled', true);
-
+               
                 storage_username = localStorage.getItem("username");
                 if(storage_username !==  username){
                     localStorage.clear();
                     $("#result").html(defaultHtml);
                 }
                 localStorage.setItem("username", username);
-
-                steem.api.setOptions({url: 'https://api.steemit.com'});
-                steem.api.getFollowCount(username, function(err, result) {
-                    console.log(err, result);
-                    if(err){
-                        throw new Error(err);
-                    } 
-                    allFollower = [];
-                    getAllFollowers('', result.follower_count, 0);
-                });
+                
+                const result = await steem.api.getFollowCountAsync(username);
+                console.log(result);
+                
+                var allFollower = await getAllFollower(result.follower_count);
+                console.log("total: " + allFollower.length);
+                
+                var previous_follower_count = localStorage.getItem("follower_count");
+                if(previous_follower_count === null){
+                    $("#past_sub").text("number of followers: " + allFollower.length + " (↗0 ↘0)");
+                }else{
+                    const allFollowing = await getAllFollowing(result.following_count);
+                    displayResult(allFollower, allFollowing);
+                }
+                localStorage.setItem("follower_count", allFollower.length);
+                localStorage.setItem("follower_list", JSON.stringify(allFollower));
+                $("#btn_check").css("background-color", "#205894").text("Check Now").prop('disabled', false);
             }
-            
-            var allFollower = [];
-            function getAllFollowers(startFollower, total_count, current_count) {
-                var options = {following: username, startFollower: startFollower, followType: 'blog', limit: 1000}
-                steem.api.getFollowersWith(options, function(err, result) {
-                    // console.log(err, result);
+            async function getAllFollowing(total_count) {
+                var retArray = [];
+                var current_count = 0;
+                var startFollowing = "";
+                while(true) {
+                    var options = {follower: 'supergiant', startFollowing: startFollowing, followType: 'blog', limit: 100}
+                    var result = await steem.api.getFollowingWithAsync(options);
+                    var followingNum = result.length;
+                    startFollowing = result[followingNum - 1].following;
+                    
+                    if(followingNum > 99){
+                        result.pop();
+                        followingNum--;
+                    }
+                    var array = result.map(function(item, index){
+                        return item.following;
+                    })
+                    
+                    retArray = retArray.length == 0 ? array : retArray.concat(array);
+                    
+                    if(current_count + result.length < total_count){
+                        current_count += followingNum;
+                    }else{
+                        break;
+                    }
+                    if(followingNum === 0){
+                        break;
+                    }
+                }
+                return retArray;
+            }
+            async function getAllFollower(total_count) {
+                var retArray = [];
+                var current_count = 0;
+                var startFollower = "";
+                while(true) {
+                    var options = {following: username, startFollower: startFollower, followType: 'blog', limit: 1000}
+                    var result = await steem.api.getFollowersWithAsync(options);
                     var followerNum = result.length;
-                    var lastFollwerName = result[followerNum - 1].follower;
+                    startFollower = result[followerNum - 1].follower;
                     
                     if(followerNum > 999){
                         result.pop();
@@ -66,61 +105,48 @@
                         return item.follower;
                     })
                     
-                    allFollower = allFollower.length == 0 ? array : allFollower.concat(array);
-
+                    retArray = retArray.length == 0 ? array : retArray.concat(array);
+                    
                     if(current_count + result.length < total_count){
-                        getAllFollowers(lastFollwerName, total_count, current_count + followerNum );
+                        current_count += followerNum;
                     }else{
-                        console.log("total: " + allFollower.length);
-                        var previous_follower_count = localStorage.getItem("follower_count");
-                        if(previous_follower_count === null){
-                            displayResult("INIT", allFollower);
-                        }else{
-                            displayResult('CHANGE', allFollower);
-                        }
+                        break;
                     }
-                })
-            }
-
-            function displayResult(type, result){
-                if(type === "CHANGE") { 
-                    var previous_follower_array = JSON.parse(localStorage.getItem("follower_list"));
-                    var new_follower_array = [];
-
-                    for(var i = 0; i < result.length; i ++){
-                        var index = previous_follower_array.indexOf(result[i]);
-                        if(index === -1){
-                            new_follower_array.push(result[i]);
-                        }else{
-                            previous_follower_array.splice(index,1);
-                        }
+                    if(followerNum === 0){
+                        break;
                     }
-
-                    var resultHtml = "";
-                    for(var i = 0; i < new_follower_array.length; i++){
-                        var link = '<a class="btn btn-success" style="margin:3px;" href="https://steemit.com/@' + new_follower_array[i] + '" role="button" target="_blank">' + new_follower_array[i] + '</a>';
-                        resultHtml += link;
-                    }
-                    for(var i = 0; i < previous_follower_array.length; i++){
-                        var link = '<a class="btn btn-warning" style="margin:3px;" href="https://steemit.com/@' + previous_follower_array[i] + '" role="button" target="_blank">' + previous_follower_array[i] + '</a>';
-                        resultHtml += link;
-                    }
-
-                    if(new_follower_array.length == 0 && previous_follower_array.length == 0){
-                        $("#result").html(defaultHtml);
-                    }else{
-                        $("#result").html(resultHtml);
-                    }                        
-                    $("#past_sub").text("number of followers: " + result.length + "  (↗" + new_follower_array.length + "  ↘" + previous_follower_array.length + ")");
-                    console.log("Recent followers: " + new_follower_array.length + " Recent unfollowers: "  + previous_follower_array.length);
-                } else if(type === "INIT"){
-                    $("#past_sub").text("number of followers: " + result.length + " (↗0 ↘0)");
                 }
-
-                localStorage.setItem("follower_count", result.length);
-                localStorage.setItem("follower_list", JSON.stringify(result));
-
-                $("#btn_check").css("background-color", "#205894").text("Check Now").prop('disabled', false);
+                return retArray;
+            }
+            function displayResult(followers, followings){    
+                var previous_follower_array = JSON.parse(localStorage.getItem("follower_list"));
+                var new_follower_array = [];
+                for(var i = 0; i < followers.length; i ++){
+                    var index = previous_follower_array.indexOf(followers[i]);
+                    if(index === -1){
+                        new_follower_array.push(followers[i]);
+                    }else{
+                        previous_follower_array.splice(index,1);
+                    }
+                }
+                var resultHtml = "";
+                for(var i = 0; i < new_follower_array.length; i++){
+                    var text = followings.indexOf(new_follower_array[i]) === -1 ? new_follower_array[i] : new_follower_array[i] + " *";
+                    var link = '<a class="btn btn-success" style="margin:3px;" href="https://steemit.com/@' + new_follower_array[i] + '" role="button" target="_blank">' + text + '</a>';
+                    resultHtml += link;
+                }
+                for(var i = 0; i < previous_follower_array.length; i++){
+                    var text = followings.indexOf(previous_follower_array[i]) === -1 ? previous_follower_array[i] : previous_follower_array[i] + " *";
+                    var link = '<a class="btn btn-warning" style="margin:3px;" href="https://steemit.com/@' + previous_follower_array[i] + '" role="button" target="_blank">' + text + '</a>';
+                    resultHtml += link;
+                }
+                if(new_follower_array.length == 0 && previous_follower_array.length == 0){
+                    $("#result").html(defaultHtml);
+                }else{
+                    $("#result").html(resultHtml);
+                }                        
+                $("#past_sub").text("number of followers: " + followers.length + "  (↗" + new_follower_array.length + "  ↘" + previous_follower_array.length + ")");
+                console.log("Recent followers: " + new_follower_array.length + " Recent unfollowers: "  + previous_follower_array.length);
             }
     
         </script>
@@ -129,7 +155,7 @@
         <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
         <!--<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>-->
 
-        <div class="container" style="margin-top:10px">
+        <div class="container" style="margin-top:5px">
             <div class="card text-center">
                 <div class="card-header">
                     Follower Change Checker
@@ -143,9 +169,12 @@
                             <span class="input-group-text">Username</span>
                         </div> 
                         <input type="text" id="text_username" class="form-control" placeholder="Username" aria-label="Username" aria-describedby="basic-addon1">
-                        <!--<div id="alert" class="alert alert-danger" role="alert" style="display:none;"></div>-->
-                        <button type="button" id="btn_check" class="btn btn-primary btn-lg btn-block" style="background-color:#205894; border-color:#205894; margin-top:10px;" onclick="getFollwerCnt();">Check Now</button>
                     </div>
+                    <div class="input-group mb-3">
+                    <!--<div id="alert" class="alert alert-danger" role="alert" style="display:none;"></div>-->
+                    <button type="button" id="btn_check" class="btn btn-primary btn-lg btn-block" style="background-color:#205894; border-color:#205894; margin-top:10px;" onclick="getSteemData();">Check Now</button>
+                    </div>
+
                     <h5 class="card-title">Follower Result</h5>
                     <div id="result" class="alert alert-primary" role="alert">
                         <div style="height:200px; padding-top:80px;padding-bottom:80px;">
@@ -153,7 +182,9 @@
                             <button type="button" class="btn btn-warning">unfollowers</button>
                         </div>
                     </div>
-                </div>
+                    <select class="custom-select" id="voting">
+                    </select>  
+                </div>                    
                 <div class="card-footer text-muted">
                     follower checker by <a style="margin:3px;" href="https://steemit.com/@supergiant" target="_blank">@supergiant</a>
                 </div>
