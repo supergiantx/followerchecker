@@ -23,8 +23,61 @@
                 $("#text_username").val(storage_username);
                 $("#past_sub").text("number of followers: " + previous_count);
                 steem.api.setOptions({url: 'https://api.steemit.com'});
+                loadSelectBox();
             };
+            function loadSelectBox(){
+                username = $("#text_username").val();
+                if(username === ""){
+                    return;
+                }
+                steem.api.getDiscussionsByBlog({tag: username, limit: 20}, function(err, result) {
+                    var text = "";
+                    for(var i = 0; i < result.length; i++){
+                        if(result[i].author === username){
+                            text += '<option value="' + result[i].permlink+ '">' + result[i].title + '</option>';
+                        }
+                    }
+                    if(result.length == 0) {
+                        $("#selectPerm").html("");
+                        $("#voting").html("");
+                        return;
+                    }
+                    $("#selectPerm").html(text);
+                    getVoting();
+                });
+            }
             
+            async function getVoting(){
+                var link = $("#selectPerm").val();
+                username = $("#text_username").val();
+                var steemPrice = await steem.api.getCurrentMedianHistoryPriceAsync();
+                steemPrice = parseFloat(steemPrice.base.replace(" SBD"));
+                var fund = await steem.api.getRewardFundAsync('post');
+                console.log(fund);
+                var result = await steem.api.getActiveVotesAsync(username, link);
+                var objectArray = [];
+                var ids = result.map(function(item, index){
+                    return item.voter;
+                })
+
+                for(var i = 0; i < result.length; i++){
+                    var id = result[i].voter;
+                    var sbd = steemPrice * result[i].rshares * (parseFloat(fund.reward_balance.replace(" STEEM","")) /fund.recent_claims);
+                    var percent = result[i].percent / 100;
+                    objectArray.push({ID:id, SBD: sbd, PERCENT: percent});
+                }
+                sortByKey(objectArray, 'SBD');
+                
+                var text = "";
+                for(var i = 0; i < objectArray.length; i++){
+                    var item = "$" + objectArray[i].SBD.toFixed(3) + "    " + objectArray[i].PERCENT + "%      " + objectArray[i].ID;
+                    text += '<option>' + item + '</option>';
+                }
+                $("#voting").html(text);
+            }
+            function sortByKey(array, key) {
+                 return array.sort(function(a,b) { return b[key] - a[key];});
+            }
             async function getSteemData(){
                 username = $("#text_username").val();
                 if(username === ""){
@@ -36,6 +89,7 @@
                 if(storage_username !==  username){
                     localStorage.clear();
                     $("#result").html(defaultHtml);
+                    loadSelectBox();
                 }
                 localStorage.setItem("username", username);
                 
@@ -153,7 +207,6 @@
     </head>
     <body>
         <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
-        <!--<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>-->
 
         <div class="container" style="margin-top:5px">
             <div class="card text-center">
@@ -171,8 +224,12 @@
                         <input type="text" id="text_username" class="form-control" placeholder="Username" aria-label="Username" aria-describedby="basic-addon1">
                     </div>
                     <div class="input-group mb-3">
-                    <!--<div id="alert" class="alert alert-danger" role="alert" style="display:none;"></div>-->
-                    <button type="button" id="btn_check" class="btn btn-primary btn-lg btn-block" style="background-color:#205894; border-color:#205894; margin-top:10px;" onclick="getSteemData();">Check Now</button>
+                        <div class="input-group-prepend">
+                            <label class="input-group-text" style="width:95px;" for="inputGroupSelect01" onclick="getVoting();">Post</label>
+                        </div>
+                        <select class="custom-select" id="selectPerm" onchange='getVoting();'>
+                        </select>
+                     <button type="button" id="btn_check" class="btn btn-primary btn-lg btn-block" style="background-color:#205894; border-color:#205894; margin-top:10px;" onclick="getSteemData();">Check Now</button>
                     </div>
 
                     <h5 class="card-title">Follower Result</h5>
@@ -182,6 +239,8 @@
                             <button type="button" class="btn btn-warning">unfollowers</button>
                         </div>
                     </div>
+                    <select class="custom-select" id="voting">
+                    </select>  
                 </div>                    
                 <div class="card-footer text-muted">
                     follower checker by <a style="margin:3px;" href="https://steemit.com/@supergiant" target="_blank">@supergiant</a>
