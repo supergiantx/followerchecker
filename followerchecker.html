@@ -42,7 +42,8 @@
                     }
                     if(result.length == 0) {
                         $("#selectPerm").html("");
-                        $("#votingList").html("");
+                        $("#votingListButton").text("");
+                        $("#votingListButton").val("");
                         return;
                     }
                     $("#selectPerm").html(text);
@@ -136,7 +137,10 @@
                 let steemPrice = await steem.api.getCurrentMedianHistoryPriceAsync();
                 steemPrice = parseFloat(steemPrice.base.replace(" SBD"));
                 let fund = await steem.api.getRewardFundAsync('post');
-                console.log(fund);
+                let replies = await steem.api.getContentRepliesWithAsync({author:username, permlink:link});
+                replies = replies.map(function(item, index){
+                        return item.author;
+                });
                 let result = await steem.api.getActiveVotesAsync(username, link);
                 let objectArray = [];
                 let ids = result.map(function(item, index){
@@ -154,12 +158,29 @@
                 sortByKey(objectArray, orderby);
                 
                 let text = "";
-                for(let i = 0; i < objectArray.length; i++){
+                for(let i = 0; i < objectArray.length; i++){                    
                     let item = "$" + objectArray[i].SBD.toFixed(3) + "    " + objectArray[i].PERCENT + "%      " + objectArray[i].ID + " (" + objectArray[i].SP + ")";
-                    text += '<option>' + item + '</option>';
+                    if(replies.includes(objectArray[i].ID)){
+                        text += '<button class="dropdown-item" type="button" value="' + objectArray[i].ID + '" onclick="selectChanged(this);" style="background-color:#d1ffdb;">' + item + '</button>';
+                    }else{
+                        text += '<button class="dropdown-item" type="button" value="' + objectArray[i].ID + '" onclick="selectChanged(this);">' + item + '</button>';
+                    }
+                    
+                    if(i === 0){
+                        $("#votingListButton").text(item);
+                        $("#votingListButton").val(objectArray[i].ID);
+                    }
+                    
                 }
-                $("#votingList").html(text);
+                $("#dropdownList").html(text);
             }
+            
+            function selectChanged(obj){
+                $("#votingListButton").text($(obj).text());
+                $("#votingListButton").val($(obj).val());
+
+            }
+
             function sortByKey(array, key) {
                  return array.sort(function(a,b) { return b[key] - a[key];});
             }
@@ -295,12 +316,30 @@
                 $("#past_sub").text("number of followers: " + followers.length + "  (↗" + new_follower_array.length + "  ↘" + previous_follower_array.length + ")");
                 console.log("Recent followers: " + new_follower_array.length + " Recent unfollowers: "  + previous_follower_array.length);
             }
+            function moveToPost(){
+                let username = $("#text_username").val();
+                let link = $("#selectPerm").val();
+                if(link === null) {
+                    return;
+                }
+                let href="https://steemit.com/@" + username + "/" + link;
+                window.open(href, "_blank");
+            }
+            function moveToBlog(){
+                let username = $("#votingListButton").val();
+                if(username === null) {
+                    return;
+                }
+                let href="https://steemit.com/@" + username;
+                window.open(href, "_blank");
+            }
     
         </script>
     </head>
     <body>
         <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
-        <!--<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>-->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
 
         <div class="container">
             <div class="d-flex" style="font-size:small;">
@@ -336,6 +375,9 @@
                         </div>
                         <select class="custom-select" id="selectPerm" onchange='getVoting("SBD");'>
                         </select>
+                        <div class="input-group-append">
+                            <button type="button" class="btn btn-outline-secondary" onclick="moveToPost();">Go</button>
+                        </div>
                     <button type="button" id="btn_check" class="btn btn-primary btn-lg btn-block" style="background-color:#205894; border-color:#205894; margin-top:10px;" onclick="getSteemData();">Check Now</button>
                     </div>
 
@@ -346,9 +388,16 @@
                             <button type="button" class="btn btn-warning">unfollowers</button>
                         </div>
                     </div>
-                    <select class="custom-select" id="votingList">
-                    </select>  
-                </div>                    
+
+                    <div class="input-group mb-3">
+                        <button class="custom-select" style="text-align:left; overflow:hidden;" type="button" id="votingListButton" data-toggle="dropdown" aria-haspopup="false" aria-expanded="false"></button>
+                        <div id="dropdownList" class="dropdown-menu" aria-labelledby="votingListButton" style="overflow:auto; max-height:30em; width:100%"></div>
+                        <div class="input-group-append">
+                            <button type="button" class="btn btn-outline-secondary" onclick="moveToBlog();">Go!</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card-footer text-muted">
                     follower checker by <a style="margin:3px;" href="https://steemit.com/@supergiant" target="_blank">@supergiant</a>
                 </div>
